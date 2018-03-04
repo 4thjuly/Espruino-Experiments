@@ -1,10 +1,11 @@
-var wifi = require('Wifi');
-var dgram = require('dgram');
+const wifi = require('Wifi');
+const dgram = require('dgram');
+
+const SSID = 'Black';
+const PASSWORD = 'DelayFinish88';
 
 var _ledOn = false;
 var _blinkIntervalID = 0;
-var SSID = 'Black';
-var PASSWORD = 'DelayFinish88';
 
 wifi.on('connected', () => {
   console.log('Connected'); 
@@ -13,20 +14,18 @@ wifi.on('connected', () => {
 
   wifi.getIP((err, d) => { 
     let ip = d.ip;
-    console.log('IP: [' + ip + ']' );
-    console.log('Creating socket');
-    let dgramSocket = dgram.createSocket('udp4');
-    console.log('Socket created');
-    dgramSocket.on('close', function(err) { console.log('Socket close: ', err); });
-    dgramSocket.bind(1900, (res) => {
+    console.log('Creating socket: ', ip);
+    let srv = dgram.createSocket('udp4');
+    srv.addMembership('239.255.255.250', ip);
+    srv.bind(1900, (res) => {
       console.log('Socket bound');
-      dgramSocket.addMembership('239.255.255.250', ip);
       res.on('message', (msg, info) => { 
-        let type = msg.split(' ')[0];
-        console.log('Type: ', type);
+        console.log('Message: ' + JSON.stringify(msg));
       });
+      res.on('close', (err) => { console.log('Socket closed: ', err); });
     });
   });
+
 });
 
 wifi.on('dhcp_timeout', (details) => {
