@@ -6,6 +6,7 @@ const PASSWORD = 'DelayFinish88';
 const UPNP_IP = '239.255.255.250';
 const BROADCAST_IP = '255.255.255.255';
 const TEST_IP = '10.0.0.1';
+const TEST_MSG = 'Test1234';
 const UPNP_PORT = 1900;
 const SSDP_NOTIFY = `NOTIFY * HTTP/1.1 
 HOST: 239.255.255.250:1900
@@ -30,7 +31,11 @@ wifi.on('connected', () => {
     let ip = d.ip;
     console.log('Creating socket: ', ip);
     let srv = dgram.createSocket('udp4');
-    srv.addMembership(UPNP_IP, ip);
+    srv.on('close', (err) => { 
+      console.log('Closed: ', err); 
+      clearInterval();
+    });
+    // srv.addMembership(UPNP_IP, ip);
     sendNotify(srv);
     setInterval(() => { sendNotify(srv); }, 5000);
   });
@@ -49,8 +54,12 @@ wifi.on('disconnected', (details) => {
 
 function sendNotify(srv) {
   console.log('Sending...');
-  srv.send(SSDP_NOTIFY, UPNP_PORT, TEST_IP);
-  console.log('Sent');
+  try {
+    srv.send(TEST_MSG, UPNP_PORT, BROADCAST_IP);
+    console.log('Sent');
+  } catch (err) {
+     console.log('Error: ', err);
+  }
 }
 
 function greenLedBlink(setOn) {
