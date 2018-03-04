@@ -54,7 +54,7 @@ function sendNotify() {
     srv.close();
     console.log('Sent');
   } catch (err) {
-     console.log('Error: ', err);
+    console.log('Error: ', err);
   }
 }
 
