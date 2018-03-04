@@ -20,7 +20,7 @@ wifi.on('connected', () => {
       res.writeHead(200);
       res.end("Hello World");
     }).listen(80);
-  })
+  });
 
 });
 
