@@ -4,11 +4,17 @@ var _blinkIntervalID = 0;
 var SSID = 'Black';
 var PASSWORD = 'DelayFinish88';
 
+function ping() {
+  wifi.ping('10.0.0.1', (ping) => { console.log('Ping: ', ping); });
+}
+
 wifi.on('connected', () => {
   console.log('connected'); 
-  wifi.getIP((err, d) => { console.log('IP: ', d); } );
+  wifi.getIP((err, d) => { console.log('IP: ', d.ip); } );
   greenLedBlink(false);
   greenLed(true);
+  ping();
+  setInterval(ping, 1000);
 });
 
 wifi.on('dhcp_timeout', (details) => {
