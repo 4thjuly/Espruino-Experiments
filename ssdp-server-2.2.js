@@ -17,6 +17,7 @@ wifi.on('connected', () => {
     console.log('IP: ', ip);
     var http = require("http");
     http.createServer((req, res) => {
+      console.log('Sending'); 
       res.writeHead(200);
       res.end("Hello World");
     }).listen(80);
