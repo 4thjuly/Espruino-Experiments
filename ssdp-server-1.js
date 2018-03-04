@@ -20,10 +20,13 @@ wifi.on('connected', () => {
     srv.bind(1900, (res) => {
       console.log('Socket bound');
       res.on('message', (msg, info) => { 
-        console.log('Message: ' + JSON.stringify(msg));
-      });
+        if (msg.split(' ')[0] === 'NOTIFY') {
+          console.log('Message: ' + JSON.stringify(msg));
+          console.log('Info: ' + JSON.stringify(info));
+        }      });
       res.on('close', (err) => { console.log('Socket closed: ', err); });
     });
+    srv.se
   });
 
 });
