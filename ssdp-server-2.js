@@ -29,15 +29,9 @@ wifi.on('connected', () => {
 
   wifi.getIP((err, d) => { 
     let ip = d.ip;
-    console.log('Creating socket: ', ip);
-    let srv = dgram.createSocket('udp4');
-    srv.on('close', (err) => { 
-      console.log('Closed: ', err); 
-      clearInterval();
-    });
-    // srv.addMembership(UPNP_IP, ip);
-    sendNotify(srv);
-    setInterval(() => { sendNotify(srv); }, 5000);
+    console.log('IP: ', ip);
+    sendNotify();
+    setInterval(() => { sendNotify(); }, 5000);
   });
 
 });
@@ -52,10 +46,12 @@ wifi.on('disconnected', (details) => {
   greenLed(false);
 });
 
-function sendNotify(srv) {
+function sendNotify() {
   console.log('Sending...');
   try {
+    let srv = dgram.createSocket('udp4');
     srv.send(TEST_MSG, UPNP_PORT, BROADCAST_IP);
+    srv.close();
     console.log('Sent');
   } catch (err) {
      console.log('Error: ', err);
