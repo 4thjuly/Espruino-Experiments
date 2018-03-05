@@ -10,6 +10,13 @@ const SSDP_PORT = 1900;
 // var _ledOn = false;
 // var _blinkIntervalID = 0;
 
+function onMsg(msg, rinfo) {
+  let type = msg.split(' ')[0];
+  if (type === 'M-SEARCH') {
+      console.log('Search: ', JSON.stringify(rinfo)); 
+  }
+}
+
 wifi.on('connected', () => {
   console.log('Connected'); 
   // greenLedBlink(false);
@@ -18,20 +25,11 @@ wifi.on('connected', () => {
   wifi.getIP((err, d) => { 
     let ip = d.ip;
     console.log('Creating socket: ', ip);
-    let srv = dgram.createSocket('udp4', (sckt) => {
-      // sckt.addMembership(SSDP_IP, ip);
-      // sckt.on('message', (msg, rinfo) => { console.log('Sckt Message: ', JSON.stringify(msg)); });
-      // sckt.on('close', (err) => { console.log('Sckt Close: ', JSON.stringify(err)); });
-      // sckt.bind(SSDP_PORT, (res) => {
-      //   // res.addMembership(SSDP_IP, ip);
-      //   res.on('message', (msg, rinfo) => { console.log('Res Message: ', JSON.stringify(msg)); });
-      //   res.on('close', (err) => { console.log('Res Close: ', JSON.stringify(err)); });
-      // });
+    let srv = dgram.createSocket('udp4');
+    srv.bind(SSDP_PORT, (res) => {
+      res.on('message', onMsg);
+      res.on('close', (err) => { console.log('Res Close: ', JSON.stringify(err)); });
     });
-    // srv.addMembership(SSDP_IP, ip);
-    srv.on('message', (msg, rinfo) => { console.log('Srv Message: ', JSON.stringify(msg)); });
-    srv.on('close', (err) => { console.log('Srv Close: ', JSON.stringify(err)); });  
-    srv.bind(SSDP_PORT, ip);
   });
 });
 
