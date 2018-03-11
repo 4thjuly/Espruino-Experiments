@@ -17,17 +17,25 @@ wifi.on('connected', () => {
 
   wifi.getIP((err, d) => { 
     let ip = d.ip;
-    console.log('getIP: ', ip);
+    console.log('IP: ', ip);
     let srv = dgram.createSocket('udp4');
     srv.bind(SSDP_PORT, (bsrv) => {
       bsrv.on('message', (msg, rinfo) => {
-        console.log('message: ', JSON.stringify(rinfo)); 
-        srv.send('Test reply', rinfo.address, rinfo.port);
+        let type = msg.split(' ')[0];
+        if (type == 'M-SEARCH') {
+          console.log('message: ', JSON.stringify(rinfo)); 
+          srv.send('Test reply', rinfo.port, rinfo.address);
+        }
+      });
+      srv.on('error', () => {
+        console.log('error');
       });
     });
   });
 });
 
+dgram.on('error', () => { console.log('Dgram error'); });
+    
 wifi.on('dhcp_timeout', (details) => {
   console.log('dhcp_timeout:', details); 
   greenLed(false);
@@ -57,7 +65,7 @@ function greenLed(setOn) {
 
 function onInit() {
   console.log('Memory: ', process.memory().free); 
-  console.log('connecting...');
+  console.log('Connecting');
   greenLedBlink(true);
   wifi.connect(SSID, {password:PASSWORD}, (err) => { 
     if (!err) { 
