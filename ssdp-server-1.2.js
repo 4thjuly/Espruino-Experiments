@@ -6,6 +6,18 @@ const PASSWORD = 'DelayFinish88';
 const SSDP_IP = '239.255.255.250';
 const BROADCAST_IP = '255.255.255.255';
 const SSDP_PORT = 1900;
+const SSDP_RESPONSE = [
+  'NOTIFY * HTTP/1.1', 
+  'HOST: 239.255.255.250:1900',
+  'CACHE-CONTROL: max-age = 1800',
+  'EXT',
+  'LOCATION: http://[x.x.x.x]', 
+  'ST: upnp:rootdevice',
+  'NTS: ssdp:alive',
+  'SERVER: EspruinoWifi UPnP/1.0 SSDP-Server/1.0',
+  'USN: uuid:f214e5fe-2a1c-42e6-9365-aff5a353547f::upnp:rootdevice',
+  ''
+].join('\r\n');
 
 var _ledOn = false;
 var _blinkIntervalID = 0;
@@ -18,13 +30,14 @@ wifi.on('connected', () => {
   wifi.getIP((err, d) => { 
     let ip = d.ip;
     console.log('IP: ', ip);
+    let responseMsg = SSDP_RESPONSE.replace('[x.x.x.x]', ip);
     let srv = dgram.createSocket('udp4');
     srv.bind(SSDP_PORT, (bsrv) => {
       bsrv.on('message', (msg, rinfo) => {
         let type = msg.split(' ')[0];
         if (type == 'M-SEARCH') {
           console.log('message: ', JSON.stringify(rinfo)); 
-          srv.send('Test reply', rinfo.port, rinfo.address);
+          srv.send(responseMsg, rinfo.port, rinfo.address);
         }
       });
       srv.on('error', () => {
