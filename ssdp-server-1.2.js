@@ -1,8 +1,12 @@
 const wifi = require('Wifi');
 const dgram = require('dgram');
 
-const SSID = 'Black-TP-Link_0BF4';
-const PASSWORD = 'DelayFinish88';
+// const SSID = 'Black-TP-Link_0BF4';
+// const PASSWORD = 'DelayFinish88';
+
+const SSID = 'Godfrey_2.4GHz';
+const PASSWORD = 'broadandpalm';
+
 const SSDP_IP = '239.255.255.250';
 const BROADCAST_IP = '255.255.255.255';
 const SSDP_PORT = 1900;
@@ -28,21 +32,23 @@ wifi.on('connected', () => {
   greenLed(true);
 
   wifi.getIP((err, d) => { 
+    //wifi.at.debug();
     let ip = d.ip;
     console.log('IP: ', ip);
     let responseMsg = SSDP_RESPONSE.replace('[x.x.x.x]', ip);
     let srv = dgram.createSocket('udp4');
     srv.bind(SSDP_PORT, (bsrv) => {
       bsrv.on('message', (msg, rinfo) => {
+        // console.log('Memory: ', process.memory().free);
+        console.log('.'); 
         let type = msg.split(' ')[0];
         if (type == 'M-SEARCH') {
           console.log('message: ', JSON.stringify(rinfo)); 
           srv.send(responseMsg, rinfo.port, rinfo.address);
         }
       });
-      srv.on('error', () => {
-        console.log('error');
-      });
+      srv.on('error', () => { console.log('error'); });
+      srv.on('close', () => { console.log('close'); });
     });
   });
 });
@@ -91,4 +97,4 @@ function onInit() {
   });
 }
 
-onInit();
+setTimeout(onInit, 1000);
