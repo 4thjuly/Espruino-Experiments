@@ -37,6 +37,7 @@ wifi.on('connected', () => {
     console.log('IP: ', ip);
     let responseMsg = SSDP_RESPONSE.replace('[x.x.x.x]', ip);
     let srv = dgram.createSocket('udp4');
+    srv.addMembership(SSDP_IP,ip, ip); // Doesn't work yet
     srv.bind(SSDP_PORT, (bsrv) => {
       bsrv.on('message', (msg, rinfo) => {
         // console.log('Memory: ', process.memory().free);
