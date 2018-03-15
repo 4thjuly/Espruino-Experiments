@@ -1,5 +1,6 @@
 const wifi = require('Wifi');
 const dgram = require('dgram');
+const http = require("http");
 
 // const SSID = 'Black-TP-Link_0BF4';
 // const PASSWORD = 'DelayFinish88';
@@ -40,10 +41,17 @@ function onSendInterval(srv) {
   srv.send(SSDP_NOTIFY, SSDP_PORT, SSDP_IP);
 }
 
+function onHttpReq(req, res) {
+  res.writeHead(200);
+  res.end("Hello World");
+}
+
 wifi.on('connected', () => {
   console.log('Connected'); 
   greenLedBlink(false);
   greenLed(true);
+
+  http.createServer((req, res) => onHttpReq(req, res)).listen(80);
 
   wifi.getIP((err, d) => { 
     let ip = d.ip;
