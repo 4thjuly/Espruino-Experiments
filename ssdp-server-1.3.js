@@ -27,18 +27,21 @@ const SEND_TIMEOUT = 10*1000;
 var _ledOn = false;
 var _blinkIntervalID = 0;
 var _timeout = false;
-var _sendInterval;
+var _ssdpInterval;
+var _httpServer;
+var _dgramServer;
+var _starting = false;
 
 // When the send timeout fires
-function onSendTimeout() {
-  console.log('Send timeout');
-  clearInterval(_sendInterval);
+function onSSDPComplete() {
+  console.log('SSDP complete');
+  clearInterval(_ssdpInterval);
 }
 
 // Send SSDP stuff every second or so
-function onSendInterval(srv) {
+function onSSDPInterval() {
   console.log('.');
-  srv.send(SSDP_NOTIFY, SSDP_PORT, SSDP_IP);
+  if (_dgramServer) _dgramServer.send(SSDP_NOTIFY, SSDP_PORT, SSDP_IP);
 }
 
 function onHttpReq(req, res) {
@@ -53,36 +56,55 @@ function onHttpReq(req, res) {
   }
 }
 
+function cleanUp() {
+  if (_httpServer) { 
+    _httpServer.close();
+    _httpServer = undefined;
+  }
+  if (_dgramServer) {
+    _dgramServer.close();
+    _dgramServer = undefined;
+  }
+}
+
+function onDgramError() {
+  console.log('Dgram error');
+  setTimeout(restart, 1000);
+}
+
+function onDgramClose() {
+  console.log('Dgram close');
+  setTimeout(restart, 1000);
+}
+
 wifi.on('connected', () => {
   console.log('Connected'); 
-  greenLedBlink(false);
-  greenLed(true);
 
-  http.createServer((req, res) => onHttpReq(req, res)).listen(80);
+  _httpServer = http.createServer((req, res) => onHttpReq(req, res));
+  _httpServer.listen(80);
 
   wifi.getIP((err, d) => { 
     let ip = d.ip;
     console.log('IP: ', ip);
-    let srv = dgram.createSocket('udp4');
-    srv.bind(SSDP_PORT);
-    srv.on('error', () => { console.log('error'); });
-    srv.on('close', () => { console.log('close'); });
-    _sendInterval = setInterval(() => onSendInterval(srv), 1000);
-    setTimeout(() => onSendTimeout(), SEND_TIMEOUT);
+    _dgramServer = dgram.createSocket('udp4');
+    _dgramServer.bind(SSDP_PORT);
+    _dgramServer.on('error', onDgramError);
+    _dgramServer.on('close', onDgramClose);
+    _ssdpInterval = setInterval(onSSDPInterval, 1000);
+    setTimeout(onSSDPComplete, SEND_TIMEOUT);
   });
 
+  doneStarting();
 });
-
-dgram.on('error', () => { console.log('Dgram error'); });
     
 wifi.on('dhcp_timeout', (details) => {
   console.log('dhcp_timeout:', details); 
-  greenLed(false);
+  setTimeout(restart, 1000);
 });
 
 wifi.on('disconnected', (details) => {
   console.log('disconnected:', details); 
-  greenLed(false);
+  setTimeout(restart, 1000);
 });
 
 function greenLedBlink(setOn) {
@@ -102,17 +124,34 @@ function greenLed(setOn) {
   digitalWrite(LED2, setOn);
 }
 
+function starting() {
+  _starting = true;
+  greenLedBlink(true);
+}
+
+function doneStarting() {
+  greenLedBlink(false);
+  greenLed(false);
+  _starting = false;
+}
+
+function restart() {
+  if (!_starting) {
+    starting();
+    cleanUp();
+    console.log('Connecting');
+    wifi.connect(SSID, {password:PASSWORD}, (err) => { 
+      if (err) { 
+        console.log('Connect error: ', err);
+        setTimeout(restart, 5000);
+      }
+    });
+  }
+}
+
 function onInit() {
   console.log('Memory: ', process.memory().free); 
-  console.log('Connecting');
-  greenLedBlink(true);
-  wifi.connect(SSID, {password:PASSWORD}, (err) => { 
-    if (err) { 
-      console.log('Connect error: ', err);
-      greenLedBlink(false);
-      greenLed(false);
-    }
-  });
+  restart();
 }
 
 setTimeout(onInit, 1000);
