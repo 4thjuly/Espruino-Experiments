@@ -42,8 +42,15 @@ function onSendInterval(srv) {
 }
 
 function onHttpReq(req, res) {
-  res.writeHead(200);
-  res.end("Hello World");
+  let a = url.parse(req.url, true);
+  console.log('onHttp: ' + a.pathname);
+  if (a.pathname == '/A0') {
+    res.writeHead(200, {'Content-Type': 'text/json'});
+    res.end(JSON.stringify({value: analogRead(A0)}));
+  } else {
+    res.writeHead(400, {'Content-Type': 'text/json'});    
+    res.end();
+  }
 }
 
 wifi.on('connected', () => {
@@ -63,6 +70,7 @@ wifi.on('connected', () => {
     _sendInterval = setInterval(() => onSendInterval(srv), 1000);
     setTimeout(() => onSendTimeout(), SEND_TIMEOUT);
   });
+
 });
 
 dgram.on('error', () => { console.log('Dgram error'); });
