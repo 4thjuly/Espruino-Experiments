@@ -21,9 +21,24 @@ const SSDP_NOTIFY = [
   'USN: uuid:f214e5fe-2a1c-42e6-9365-aff5a353547f::upnp:rootdevice',
   ''
 ].join('\r\n');
+const SEND_TIMEOUT = 10*1000;
 
 var _ledOn = false;
 var _blinkIntervalID = 0;
+var _timeout = false;
+var _sendInterval;
+
+// When the send timeout fires
+function onSendTimeout() {
+  console.log('Send timeout');
+  clearInterval(_sendInterval);
+}
+
+// Send SSDP stuff every second or so
+function onSendInterval(srv) {
+  console.log('.');
+  srv.send(SSDP_NOTIFY, SSDP_PORT, SSDP_IP);
+}
 
 wifi.on('connected', () => {
   console.log('Connected'); 
@@ -35,9 +50,10 @@ wifi.on('connected', () => {
     console.log('IP: ', ip);
     let srv = dgram.createSocket('udp4');
     srv.bind(SSDP_PORT);
-    setInterval( () => { srv.send(responseMsg, SSDP_PORT, SSDP_IP); }, 1000);
     srv.on('error', () => { console.log('error'); });
     srv.on('close', () => { console.log('close'); });
+    _sendInterval = setInterval(() => onSendInterval(srv), 1000);
+    setTimeout(() => onSendTimeout(), SEND_TIMEOUT);
   });
 });
 
