@@ -16,10 +16,10 @@ const SSDP_NOTIFY = [
   'HOST: 239.255.255.250:1900',
   'CACHE-CONTROL: max-age = 1800',
   'LOCATION: *', 
-  'NT: upnp:rootdevice',
+  'NT: urn:schemas-reszolve-com:device:espruino:1',
   'NTS: ssdp:alive',
   'SERVER: EspruinoWifi UPnP/1.0 SSDP-Server/1.0',
-  'USN: uuid:f214e5fe-2a1c-42e6-9365-aff5a353547f::upnp:rootdevice',
+  'USN: uuid:f214e5fe-2a1c-42e6-9365-aff5a353547f::urn:schemas-reszolve-com:device:espruino:',
   ''
 ].join('\r\n');
 const SEND_TIMEOUT = 10*1000;
@@ -57,14 +57,26 @@ function onHttpReq(req, res) {
 }
 
 function cleanUp() {
-  if (_httpServer) { 
-    _httpServer.close();
-    _httpServer = undefined;
+  try { 
+    if (_httpServer) _httpServer.close(); 
+  } catch (exc) { 
+    console.log('cleanUp: ', exc); 
   }
-  if (_dgramServer) {
-    _dgramServer.close();
-    _dgramServer = undefined;
+  _httpServer = undefined;
+
+  try { 
+    if (_dgramServer) _dgramServer.close(); 
+  } catch (exc) { 
+    console.log('cleanUp: ', exc); 
   }
+  _dgramServer = undefined;
+
+  try {
+    wifi.disconnect();
+  } catch (exc) {
+    console.log('cleanUp: ', exc); 
+  }
+
 }
 
 function onDgramError() {
@@ -84,17 +96,22 @@ wifi.on('connected', () => {
   _httpServer.listen(80);
 
   wifi.getIP((err, d) => { 
-    let ip = d.ip;
-    console.log('IP: ', ip);
-    _dgramServer = dgram.createSocket('udp4');
-    _dgramServer.bind(SSDP_PORT);
-    _dgramServer.on('error', onDgramError);
-    _dgramServer.on('close', onDgramClose);
-    _ssdpInterval = setInterval(onSSDPInterval, 1000);
-    setTimeout(onSSDPComplete, SEND_TIMEOUT);
+    if (!err && d) {
+      let ip = d.ip;
+      console.log('IP: ', ip);
+      _dgramServer = dgram.createSocket('udp4');
+      _dgramServer.bind(SSDP_PORT);
+      _dgramServer.on('error', onDgramError);
+      _dgramServer.on('close', onDgramClose);
+      _ssdpInterval = setInterval(onSSDPInterval, 1000);
+      setTimeout(onSSDPComplete, SEND_TIMEOUT);
+    } else {
+      console.log('getIP error: ', err);
+      setTimeout(restart, 1000);
+    }
   });
 
-  doneStarting();
+  doneStarting(true);
 });
     
 wifi.on('dhcp_timeout', (details) => {
@@ -108,16 +125,18 @@ wifi.on('disconnected', (details) => {
 });
 
 function greenLedBlink(setOn) {
+  if (_blinkIntervalID) { 
+    clearInterval(_blinkIntervalID);
+    _blinkIntervalID = 0;
+  }
+
   if (setOn) {
-    if (_blinkIntervalID) clearInterval(_blinkIntervalID);
     _blinkIntervalID = setInterval(() => {
       _ledOn = !_ledOn;
       digitalWrite(LED2, _ledOn);
     }, 500);
-  } else {
-    clearInterval(_blinkIntervalID);
-    _blinkIntervalID = 0;
   }
+  
 }
 
 function greenLed(setOn) {
@@ -129,9 +148,9 @@ function starting() {
   greenLedBlink(true);
 }
 
-function doneStarting() {
+function doneStarting(success) {
   greenLedBlink(false);
-  greenLed(false);
+  greenLed(success);
   _starting = false;
 }
 
@@ -142,6 +161,7 @@ function restart() {
     console.log('Connecting');
     wifi.connect(SSID, {password:PASSWORD}, (err) => { 
       if (err) { 
+        doneStarting(false);
         console.log('Connect error: ', err);
         setTimeout(restart, 5000);
       }
@@ -154,4 +174,4 @@ function onInit() {
   restart();
 }
 
-setTimeout(onInit, 1000);
+// setTimeout(onInit, 1000);
