@@ -4,9 +4,11 @@ const http = require("http");
 
 // const SSID = 'Black-TP-Link_0BF4';
 // const PASSWORD = 'DelayFinish88';
+// const SSID = 'Godfrey_2.4GHz';
+// const PASSWORD = 'broadandpalm';
 
-const SSID = 'Godfrey_2.4GHz';
-const PASSWORD = 'broadandpalm';
+const SSID = 'iet-wlan-1';
+const PASSWORD = 'alumbrook';
 
 const SSDP_IP = '239.255.255.250';
 const BROADCAST_IP = '255.255.255.255';
@@ -47,9 +49,9 @@ function onSSDPInterval() {
 function onHttpReq(req, res) {
   let a = url.parse(req.url, true);
   console.log('onHttp: ' + a.pathname);
-  if (a.pathname == '/A0') {
+  if (a.pathname == '/State') {
     res.writeHead(200, {'Content-Type': 'text/json'});
-    res.end(JSON.stringify({value: analogRead(A0)}));
+    res.end(JSON.stringify({A0: analogRead(A0)}));
   } else {
     res.writeHead(400, {'Content-Type': 'text/json'});    
     res.end();
