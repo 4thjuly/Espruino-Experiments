@@ -24,6 +24,18 @@ const SSDP_NOTIFY = [
   'USN: uuid:f214e5fe-2a1c-42e6-9365-aff5a353547f::urn:schemas-reszolve-com:device:espruino:',
   ''
 ].join('\r\n');
+
+// TBD - Echo search, with the original ip:port in the ORIGIN field
+// const SSDP_SEARCH = [
+//   'M-SEARCH * HTTP/1.1',
+//   'HOST: 239.255.255.250:1900',
+//   'MAN: "ssdp:discover"',
+//   'MX: 1', 
+//   'ST: urn:schemas-reszolve-com:device:espruino:1',
+//   'ORIGIN: [x.x.x.x:y]',
+//   ''
+// ].join('\r\n');
+
 const SEND_TIMEOUT = 10*1000;
 
 var _ledOn = false;
@@ -177,3 +189,4 @@ function onInit() {
 }
 
 // setTimeout(onInit, 1000);
+
