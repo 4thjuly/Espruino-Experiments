@@ -19,6 +19,7 @@ var _starting = false;
 function onSendComplete() {
   console.log('Send complete');
   clearInterval(_sendInterval);
+  setDeepSleep(1);
 }
 
 // Send HTTP stuff to Smartthings
@@ -103,7 +104,7 @@ function restart() {
       if (err) { 
         doneStarting(false);
         console.log('Connect error: ', err);
-        setTimeout(restart, 5000);
+        setTimeout(restart, 60*1000);
       }
     });
   }
@@ -112,6 +113,11 @@ function restart() {
 function onInit() {
   console.log('Memory: ', process.memory().free); 
   restart();
+  // setSleepIndicator(LED1); // Debugging
+  setInterval(() => { 
+    setDeepSleep(0);
+    restart(); 
+  }, 60*60*1000); // Wake every hour
 }
 
-setTimeout(onInit, 1000);
+// setTimeout(onInit, 1000);
