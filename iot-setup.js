@@ -30,7 +30,13 @@ function processAccessPoints(err, data) {
 }
 
 function mainPage() {
-  let page = `<html>DeviceID: ${_mac}</html>`;
+  let page = `<html>DeviceID: ${_mac}</html>` + 
+    '<br>' +
+    '<form action="/setAP">' +
+    '<label>SSID </label>' +
+    '<input>' +
+    '<button>Set SSID</button>' +
+    '</form>';
   
   return {'type':'text/html', 'content':page};
 }
@@ -41,7 +47,11 @@ function createWebServer() {
     default_type: 'text/plain',
     default_index: 'main.njs',
     memory: {
-      'main.njs': { 'content': mainPage }
+      'main.njs': { 'content': mainPage },
+      'setAP.html' : { 
+        'type': 'text/html', 
+        'content': '<html>setAP</html>'
+      }
     }
   });
     
