@@ -6,6 +6,7 @@ const dgram = require('dgram');
 const SSID = 'iot-2903';
 
 var _webServer;
+var _macAddr = '';
 
 function processAccessPoints(err, data) {
   console.log(' ');
@@ -29,7 +30,7 @@ function processAccessPoints(err, data) {
 }
 
 function mainPage() {
-  let page = '<html>Hello World Dynamic 1.</html>';
+  let page = `<html>DeviceID: ${_mac}</html>`;
   
   return {'type':'text/html', 'content':page};
 }
@@ -48,6 +49,7 @@ function createWebServer() {
     console.log('WebServer listening on port ' + WebServer.port);
     Wifi.getIP((err, data) => {  
       console.log('IP: ', data);
+      _mac = data.mac.split(':').join('').toUpperCase();
     });
   });
   
