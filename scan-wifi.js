@@ -1,5 +1,7 @@
 var wifi = require('Wifi');
 
+const SSID = 'IET-IoT-1';
+
 function processAccessPoints(err, data) {
   console.log(' ');
   console.log(' ');
@@ -24,7 +26,9 @@ function processAccessPoints(err, data) {
 
 function onInit() {
   console.log('Scanning');
-  wifi.scan((err, data) => { processAccessPoints(err, data); });
+  wifi.startAP(SSID, {authMode:"open", password:'12345678'}, () => { 
+    wifi.scan((err, data) => { processAccessPoints(err, data); });
+  });
 }
 
-onInit();
+setTimeout(()=> { onInit(); }, 1000);

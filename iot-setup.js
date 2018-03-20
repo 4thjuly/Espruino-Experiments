@@ -3,7 +3,7 @@ const WebServer = require('WebServer');
 const http = require("http");
 const dgram = require('dgram');
 
-const SSID = 'IET-IoT-1';
+const SSID = 'iot-2903';
 
 var _webServer;
 
@@ -28,21 +28,27 @@ function processAccessPoints(err, data) {
   
 }
 
+function mainPage() {
+  let page = '<html>Hello World Dynamic 1.</html>';
+  
+  return {'type':'text/html', 'content':page};
+}
+    
 function createWebServer() {
   _webServer = new WebServer({
     port: 80,
     default_type: 'text/plain',
-    default_index: 'index.html',
+    default_index: 'main.njs',
     memory: {
-      'index.html': { 
-        'content': '<html>Hello World!</html>',
-        'type': 'text/html'
-      }
+      'main.njs': { 'content': mainPage }
     }
   });
-  
+    
   _webServer.on('start', function (WebServer) {
     console.log('WebServer listening on port ' + WebServer.port);
+    Wifi.getIP((err, data) => {  
+      console.log('IP: ', data);
+    });
   });
   
   _webServer.on('request', function (request, response, parsedUrl, WebServer) {
@@ -56,26 +62,8 @@ function createWebServer() {
   _webServer.createServer();
 }
 
-function createWebServer2() {
-  http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end("Hello World");
-  }).listen(80);
-}
-
-function createDgramServer() {
-  let srv = dgram.createSocket('udp4');
-  srv = srv.bind(8080, () => {
-    srv.on('message', function(msg, info) {
-      console.log("Dgram message: ", msg);
-    });
-  });
-}
-
 Wifi.on('connected', () => {
   console.log('Connected'); 
-  // Wifi.getIP((err, data) => { console.log('IP: ', data); });
-  // createWebServer2();
 });
 
 Wifi.on('associated', () => {
@@ -85,33 +73,20 @@ Wifi.on('associated', () => {
 function onInit() {
   console.log('OnInit');
   Wifi.startAP(SSID, {authMode:"open", password:'12345678'}, () => {
-    console.log('AP Started'); 
-    Wifi.setAPIP({ip:'192.168.0.1'}, () => { });
-    Wifi.getAPIP((err, data) => {  
-      console.log('APIP: ', data); 
-      // Wifi.getStatus((status) => { console.log('Status: ', status); });
-      // createWebServer2();
-      try {
-        createDgramServer();
-      } catch (exc) {
-        console.log(exc);
-      }
-    });
-    // Wifi.scan((err, data) => { processAccessPoints(err, data); });
+    try {
+      console.log('AP Started'); 
+      Wifi.setAPIP({ip:'192.168.0.1'}, () => { });
+      Wifi.setHostname(SSID, () => { });
+      Wifi.getAPIP((err, data) => {  
+        console.log('APIP: ', data); 
+        // Wifi.getStatus((status) => { console.log('Status: ', status); });
+        createWebServer();
+      });
+      // Wifi.scan((err, data) => { processAccessPoints(err, data); });
+    } catch (exc) {
+      console.log(exc);
+    }
   });
 }
 
-
-function onInit2() {
-  console.log('OnInit');
-  
-  Wifi.connect('Black-TP-Link_0BF4', {password:'DelayFinish88'}, (err) => {
-    if (err) throw err;
-    console.log("Connected");
-    Wifi.getIP((err, data) => { console.log('IP: ', data); });
-    createWebServer();
-  });
-  
-}
-
-setTimeout(()=> { onInit(); }, 1000);
+setTimeout(onInit, 1000);
