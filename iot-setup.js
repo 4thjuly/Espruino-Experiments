@@ -40,24 +40,21 @@ function mainPage() {
       '<button>Set SSID</button>' +
     '</form>';
   
-  return {'type':'text/html', 'content':page};
+  return {'content': page};
 }
     
 function createWebServer() {
   _webServer = new WebServer({
     port: 80,
-    default_type: 'text/plain',
+    default_type: 'text/html',
     default_index: 'main.njs',
     memory: {
       'main.njs': {'content': mainPage},
-      'setAP.html': { 
-        'type': 'text/html', 
-        'content': '<html>TBD: [setAP] </html>'
-      }
+      'setAP.html': { 'content': '<html>TBD: [setAP] </html>' }
     }
   });
     
-  _webServer.on('start', function (WebServer) {
+  _webServer.on('start', (WebServer) => {
     console.log('WebServer listening on port ' + WebServer.port);
     Wifi.getIP((err, data) => {  
       console.log('IP: ', JSON.stringify(data));
@@ -65,11 +62,16 @@ function createWebServer() {
     });
   });
   
-  _webServer.on('request', function (request, response, parsedUrl, WebServer) {
+  _webServer.on('request', (request, response, parsedUrl, WebServer) => {
     console.log('WebServer requested', parsedUrl);
+    if (parsedUrl.pathname == '/setAP.html') {
+      let ssid = parsedUrl.query.ssid;
+      let pw = parsedUrl.query.password;
+      console.log(`set ssid: ${ssid} passeod: ${pw}`);
+    }
   });
   
-  _webServer.on('error', function (error, WebServer) {
+  _webServer.on('error', (error, WebServer) => {
     console.log('WebServer error', error);
   });
 
