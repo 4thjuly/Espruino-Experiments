@@ -30,12 +30,14 @@ function processAccessPoints(err, data) {
 }
 
 function mainPage() {
-  let page = `<html>DeviceID: ${_mac}</html>` + 
-    '<br>' +
-    '<form action="/setAP">' +
-    '<label>SSID </label>' +
-    '<input>' +
-    '<button>Set SSID</button>' +
+  let page = `<html>Device ID: ${_mac}</html>` + 
+    '<br><br>' +
+    '<form action="/setAP.html">' +
+      '<label>SSID</label><br><input name="ssid">' +
+      '<br><br>' +
+      '<label>Password</label><br><input name="password">' +
+      '<br><br>' +
+      '<button>Set SSID</button>' +
     '</form>';
   
   return {'type':'text/html', 'content':page};
@@ -47,10 +49,10 @@ function createWebServer() {
     default_type: 'text/plain',
     default_index: 'main.njs',
     memory: {
-      'main.njs': { 'content': mainPage },
-      'setAP.html' : { 
+      'main.njs': {'content': mainPage},
+      'setAP.html': { 
         'type': 'text/html', 
-        'content': '<html>setAP</html>'
+        'content': '<html>TBD: [setAP] </html>'
       }
     }
   });
@@ -58,7 +60,7 @@ function createWebServer() {
   _webServer.on('start', function (WebServer) {
     console.log('WebServer listening on port ' + WebServer.port);
     Wifi.getIP((err, data) => {  
-      console.log('IP: ', data);
+      console.log('IP: ', JSON.stringify(data));
       _mac = data.mac.split(':').join('').toUpperCase();
     });
   });
@@ -90,8 +92,7 @@ function onInit() {
       Wifi.setAPIP({ip:'192.168.0.1'}, () => { });
       Wifi.setHostname(SSID, () => { });
       Wifi.getAPIP((err, data) => {  
-        console.log('APIP: ', data); 
-        // Wifi.getStatus((status) => { console.log('Status: ', status); });
+        console.log('APIP: ', JSON.stringify(data)); 
         createWebServer();
       });
       // Wifi.scan((err, data) => { processAccessPoints(err, data); });
