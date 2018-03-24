@@ -26,6 +26,7 @@ var _apList;
 var _ssid;
 var _pw;
 var _clientIP;
+var _connectError;
 
 function processAccessPoints(err, data) {
   if (err) throw err;
@@ -34,6 +35,7 @@ function processAccessPoints(err, data) {
 }
 
 function enterSSIDPageContent() {
+  _connectError = false;
   let page = PAGE_HEADER +
     'Device ID: ' + _mac + 
     '<br><hr><br>' +
@@ -98,18 +100,17 @@ function ssidConfirmPageContent() {
       console.log('Stopping AP');
       Wifi.stopAP();
     }, 1000);
-  } 
-  
-  // Refresh
-  if (!_ssid || !_clientIP) {
+  } else if (_connectError) {
+    page += `<div> Connection Error </div>`;
+  } else if (!_ssid || !_clientIP) {
     console.log('ssidConfirm no ssid');
-    page += 
+    page += '<div> Connecting... </div>' +
     '<script>' +
-      'setTimeout( function(){window.location.href = "ssidConfirm.njs"},5000);' +
+      'setTimeout( function(){window.location.href = "ssidConfirm.njs"}, 5000);' +
     '</script>';
   }
   
-  page += PAGE_FOOTER;
+  page += '<br><hr>' + PAGE_FOOTER;
   
   return {'content': page};
 }
@@ -139,12 +140,18 @@ function createWebServer() {
     if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
       let newSSID = parsedUrl.query.ssid;
       let newPW = parsedUrl.query.password;
-      if (_ssid != newSSID || _pw != newPW) {
+      if (_ssid != newSSID || _pw != newPW || _connectError) {
         _ssid = parsedUrl.query.ssid;
         _pw = parsedUrl.query.password;
-        console.log(`set ssid: ${_ssid}, password: ${_pw}`);      
+        _connectError = false;
+        console.log(`set ssid: ${_ssid}, password: ${_pw}`);
         setTimeout(() => {
-          Wifi.connect(_ssid, {password:_pw});
+          Wifi.connect(_ssid, {password:_pw}, (err) => {
+            if (err) {
+              console.log('Wifi connect error');
+              _connectError = true;
+            }
+          });
         }, 1000);
       }
     }
@@ -163,7 +170,6 @@ Wifi.on('connected', (err) => {
   Wifi.getIP((err, data) => {
     console.log('AP: ', JSON.stringify(data)); 
     _clientIP = data.ip;
-    
   });
 
 });
