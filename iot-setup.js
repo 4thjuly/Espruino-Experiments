@@ -4,24 +4,39 @@ const http = require("http");
 const dgram = require('dgram');
 
 const SSID = 'iot-2903';
-
+const PAGE_STYLE = 'font-family:Verdana; font-size:20px;';
+const PAGE_HEADER = 
+`
+    <!DOCTYPE html>
+    <html style="${PAGE_STYLE}"> 
+    <head> 
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+`;
+const PAGE_FOOTER = 
+ `
+  </body>
+  </html>
+`;    
 var _webServer;
 var _macAddr = '';
+var _apList;
 
 function processAccessPoints(err, data) {
-  console.log(' ');
-  console.log(' ');
-  console.log('--- Done scanning ---');
-
   if (err) throw err;
   
-  if (data) {
-    for (var i=0; i<data.length; i++) {
-      console.log('Access Point: ', data[i]);
-    }
-  } else {
-    console.log('No access points');
-  }
+  console.log('Access Points: ', data.length);
+
+  // if (data) {
+  //   for (var i=0; i<data.length; i++) {
+  //     console.log('Access Point: ', data[i]);
+  //   }
+  // } else {
+  //   console.log('No access points');
+  // }
+
+  _apList = data;
   
   // setTimeout(() => {
   //   wifi.scan((err, data) => { processAccessPoints(err, data); });
@@ -29,16 +44,43 @@ function processAccessPoints(err, data) {
   
 }
 
-function mainPage() {
-  let page = `<html>Device ID: ${_mac}</html>` + 
-    '<br><br>' +
+function enterSSIDPageContent() {
+  let page = PAGE_HEADER +
+    'Device ID: ' + _mac + 
+    '<br><hr><br>' +
+    '<div style="text-align:center">Set SSID</div>' +
+    '<br>' +
     '<form action="/setAP.html">' +
       '<label>SSID</label><br><input name="ssid">' +
       '<br><br>' +
       '<label>Password</label><br><input name="password">' +
-      '<br><br>' +
+      '<br><br><hr>' +
       '<button>Set SSID</button>' +
-    '</form>';
+    '</form>' +
+    PAGE_FOOTER;
+  
+  return {'content': page};
+}
+
+function apListPageContent() {
+  let page = PAGE_HEADER + 
+    'Device ID: ' + _mac + 
+    '<br><hr><br>' +
+    '<div style="text-align:center">Access Point List</div>' + 
+    '<br>';
+  
+  if (_apList) {
+    page += '<ul>';
+    for (var i=0; i<_apList.length; i++) {
+      page += `<li> ${_apList[i].rssi}dB - "${_apList[i].ssid}" </li>`;
+      page += '<br>';
+    }
+    page += '</ul>';
+  } 
+
+  page += '<hr>' + 
+    '<a href="/enterSSID.njs">Continue</a>' +
+    PAGE_FOOTER;
   
   return {'content': page};
 }
@@ -47,10 +89,11 @@ function createWebServer() {
   _webServer = new WebServer({
     port: 80,
     default_type: 'text/html',
-    default_index: 'main.njs',
+    default_index: 'apList.njs',
     memory: {
-      'main.njs': {'content': mainPage},
-      'setAP.html': { 'content': '<html>TBD: [setAP] </html>' }
+      'enterSSID.njs': {'content': enterSSIDPageContent},
+      'setAP.html': { 'content': '<html>TBD: [setAP] </html>' },
+      'apList.njs' : {'content': apListPageContent},
     }
   });
     
@@ -95,9 +138,12 @@ function onInit() {
       Wifi.setHostname(SSID, () => { });
       Wifi.getAPIP((err, data) => {  
         console.log('APIP: ', JSON.stringify(data)); 
-        createWebServer();
+        Wifi.scan((err, data) => { 
+          console.log('Scan complete'); 
+          processAccessPoints(err, data); 
+          createWebServer();
+        });
       });
-      // Wifi.scan((err, data) => { processAccessPoints(err, data); });
     } catch (exc) {
       console.log(exc);
     }
