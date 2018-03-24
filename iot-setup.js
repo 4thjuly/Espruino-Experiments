@@ -34,25 +34,6 @@ function processAccessPoints(err, data) {
   _apList = data;
 }
 
-function enterSSIDPageContent() {
-  _connectError = false;
-  let page = PAGE_HEADER +
-    'Device ID: ' + _mac + 
-    '<br><hr><br>' +
-    '<div style="text-align:center">Set SSID</div>' +
-    '<br>' +
-    '<form action="/ssidConfirm.njs">' +
-      '<label>SSID</label><br><input name="ssid">' +
-      '<br><br>' +
-      '<label>Password</label><br><input name="password">' +
-      '<br><br><hr>' +
-      '<button>Set SSID</button>' +
-    '</form>' +
-    PAGE_FOOTER;
-  
-  return {'content': page};
-}
-
 function apListPageContent() {
   let page = PAGE_HEADER + 
     'Device ID: ' + _mac + 
@@ -82,6 +63,29 @@ function apListPageContent() {
     });
   }, 5000);
 
+  return {'content': page};
+}
+
+
+function enterSSIDPageContent() {
+  _connectError = false;
+  _ssid = undefined;
+  _pw = undefined;
+  _clientIP = undefined;
+  let page = PAGE_HEADER +
+    'Device ID: ' + _mac + 
+    '<br><hr><br>' +
+    '<div style="text-align:center">Set SSID</div>' +
+    '<br>' +
+    '<form action="/ssidConfirm.njs">' +
+      '<label>SSID</label><br><input name="ssid">' +
+      '<br><br>' +
+      '<label>Password</label><br><input name="password">' +
+      '<br><br><hr>' +
+      '<button>Set SSID</button>' +
+    '</form>' +
+    PAGE_FOOTER;
+  
   return {'content': page};
 }
 
@@ -143,6 +147,7 @@ function createWebServer() {
       if (_ssid != newSSID || _pw != newPW || _connectError) {
         _ssid = parsedUrl.query.ssid;
         _pw = parsedUrl.query.password;
+        _clientIP = undefined;
         _connectError = false;
         console.log(`set ssid: ${_ssid}, password: ${_pw}`);
         setTimeout(() => {
