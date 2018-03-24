@@ -25,6 +25,7 @@ var _macAddr = '';
 var _apList;
 var _ssid;
 var _pw;
+var _clientIP;
 
 function processAccessPoints(err, data) {
   if (err) throw err;
@@ -90,12 +91,24 @@ function ssidConfirmPageContent() {
     '<br>';
   if (_ssid) {
     page += `<div> SSID: ${_ssid} </div>`;
-  } else {
+  } 
+  if (_clientIP) {
+    page += `<div> Client IP: ${_clientIP} </div>`;
+    setTimeout( () => {
+      console.log('Stopping AP');
+      Wifi.stopAP();
+    }, 1000);
+  } 
+  
+  // Refresh
+  if (!_ssid || !_clientIP) {
+    console.log('ssidConfirm no ssid');
     page += 
     '<script>' +
-      'setTimeout( function(){window.location.href = "ssidConfirm.njs"},2500);' +
+      'setTimeout( function(){window.location.href = "ssidConfirm.njs"},5000);' +
     '</script>';
   }
+  
   page += PAGE_FOOTER;
   
   return {'content': page};
@@ -116,17 +129,24 @@ function createWebServer() {
   _webServer.on('start', (WebServer) => {
     console.log('WebServer listening on port ' + WebServer.port);
     Wifi.getIP((err, data) => {  
-      console.log('IP: ', JSON.stringify(data));
       _mac = data.mac.split(':').join('').toUpperCase();
+      console.log('Mac: ', _mac);
     });
   });
   
   _webServer.on('request', (request, response, parsedUrl, WebServer) => {
-    console.log('WebServer requested', parsedUrl);
+    console.log('WebServer requested', parsedUrl.path);
     if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
-      _ssid = parsedUrl.query.ssid;
-      _pw = parsedUrl.query.password;
-      console.log(`set ssid: ${_ssid}, password: ${_pw}`);
+      let newSSID = parsedUrl.query.ssid;
+      let newPW = parsedUrl.query.password;
+      if (_ssid != newSSID || _pw != newPW) {
+        _ssid = parsedUrl.query.ssid;
+        _pw = parsedUrl.query.password;
+        console.log(`set ssid: ${_ssid}, password: ${_pw}`);      
+        setTimeout(() => {
+          Wifi.connect(_ssid, {password:_pw});
+        }, 1000);
+      }
     }
   });
   
@@ -137,12 +157,19 @@ function createWebServer() {
   _webServer.createServer();
 }
 
-Wifi.on('connected', () => {
-  console.log('Connected'); 
+Wifi.on('connected', (err) => {
+  if (err) throw err;
+  console.log('Wifi connected: '); 
+  Wifi.getIP((err, data) => {
+    console.log('AP: ', JSON.stringify(data)); 
+    _clientIP = data.ip;
+    
+  });
+
 });
 
 Wifi.on('associated', () => {
-  console.log('Associated'); 
+  console.log('Wifi associated'); 
 });
 
 function onInit() {
