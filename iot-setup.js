@@ -28,10 +28,8 @@ var _pw;
 
 function processAccessPoints(err, data) {
   if (err) throw err;
-  
   console.log('Access Points: ', data.length);
   _apList = data;
-  
 }
 
 function enterSSIDPageContent() {
@@ -73,7 +71,13 @@ function apListPageContent() {
     PAGE_FOOTER;
 
   // Async refresh the list
- //  Wifi.scan((err, data) => { processAccessPoints(err, data); });
+  setTimeout( () => {
+    console.log('Wifi scan'); 
+    Wifi.scan((err, data) => { 
+      console.log('Scan complete'); 
+      processAccessPoints(err, data); 
+    });
+  }, 5000);
 
   return {'content': page};
 }
@@ -143,6 +147,7 @@ function onInit() {
       Wifi.setHostname(SSID, () => { });
       Wifi.getAPIP((err, data) => {  
         console.log('APIP: ', JSON.stringify(data)); 
+        console.log('Wifi scan'); 
         Wifi.scan((err, data) => { 
           console.log('Scan complete'); 
           processAccessPoints(err, data); 
