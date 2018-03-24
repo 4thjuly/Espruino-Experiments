@@ -88,7 +88,14 @@ function ssidConfirmPageContent() {
     '<br><hr><br>' +
     '<div style="text-align:center">SSID Set</div>' +
     '<br>';
-  page += `<div> SSID: ${_ssid} </div>`;
+  if (_ssid) {
+    page += `<div> SSID: ${_ssid} </div>`;
+  } else {
+    page += 
+    '<script>' +
+      'setTimeout( function(){window.location.href = "ssidConfirm.njs"},2500);' +
+    '</script>';
+  }
   page += PAGE_FOOTER;
   
   return {'content': page};
@@ -116,7 +123,7 @@ function createWebServer() {
   
   _webServer.on('request', (request, response, parsedUrl, WebServer) => {
     console.log('WebServer requested', parsedUrl);
-    if (parsedUrl.pathname == '/ssidConfirm.njs') {
+    if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
       _ssid = parsedUrl.query.ssid;
       _pw = parsedUrl.query.password;
       console.log(`set ssid: ${_ssid}, password: ${_pw}`);
