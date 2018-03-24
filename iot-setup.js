@@ -4,6 +4,8 @@ const http = require("http");
 const dgram = require('dgram');
 
 const SSID = 'iot-2903';
+const SMARTTHINGS_PORT = '39500';
+const SMARTTHINGS_SEND_INTERVAL = 5*60*1000;
 const PAGE_STYLE = 'font-family:Verdana; font-size:20px;';
 const PAGE_HEADER = 
 `
@@ -27,11 +29,37 @@ var _ssid;
 var _pw;
 var _clientIP;
 var _connectError;
+var _smartthingsIP = '192.168.1.159';
 
 function processAccessPoints(err, data) {
   if (err) throw err;
   console.log('Access Points: ', data.length);
   _apList = data;
+}
+
+function sendDataToSmartthings() {
+  if (!_smartthingsIP) {
+    console.log('Smartthings IP not set');
+    return;
+  }
+
+  let content = JSON.stringify({
+    A0: analogRead(A0),
+    A1: analogRead(A1)
+  });
+  console.log('Smartthings send: ' + content);
+  var options = {
+    host: _smartthingsIP,
+    port: SMARTTHINGS_PORT,
+    path: '/',
+    method: 'POST',
+    headers: { "Content-Type":"application/json", "Content-Length":content.length }
+  };
+  http.request(options, (res) => {
+    let allData = "";
+    res.on('data', function(data) { allData += data; });
+    res.on('close', function(data) { console.log("Send closed: " + allData); }); 
+  }).end(content);
 }
 
 function apListPageContent() {
@@ -66,7 +94,6 @@ function apListPageContent() {
   return {'content': page};
 }
 
-
 function enterSSIDPageContent() {
   _connectError = false;
   _ssid = undefined;
@@ -81,6 +108,8 @@ function enterSSIDPageContent() {
       '<label>SSID</label><br><input name="ssid">' +
       '<br><br>' +
       '<label>Password</label><br><input name="password">' +
+      '<br><br>' +
+      '<label>Smartthings IP</label><br><input name="smartthingsIP">' +
       '<br><br><hr>' +
       '<button>Set SSID</button>' +
     '</form>' +
@@ -100,7 +129,7 @@ function ssidConfirmPageContent() {
   } 
   if (_clientIP) {
     page += `<div> Client IP: ${_clientIP} </div>`;
-    setTimeout( () => {
+    setTimeout( () => { 
       console.log('Stopping AP');
       Wifi.stopAP();
     }, 1000);
@@ -113,7 +142,9 @@ function ssidConfirmPageContent() {
       'setTimeout( function(){window.location.href = "ssidConfirm.njs"}, 5000);' +
     '</script>';
   }
-  
+  if (_smartthingsIP) {
+    page += `<div> Smartthings IP: ${_smartthingsIP} </div>`;
+  }
   page += '<br><hr>' + PAGE_FOOTER;
   
   return {'content': page};
@@ -147,6 +178,7 @@ function createWebServer() {
       if (_ssid != newSSID || _pw != newPW || _connectError) {
         _ssid = parsedUrl.query.ssid;
         _pw = parsedUrl.query.password;
+        _smartthingsIP = parsedUrl.query.smartthingsIP;
         _clientIP = undefined;
         _connectError = false;
         console.log(`set ssid: ${_ssid}, password: ${_pw}`);
@@ -169,12 +201,15 @@ function createWebServer() {
   _webServer.createServer();
 }
 
+// Client connected, all ready to go
 Wifi.on('connected', (err) => {
   if (err) throw err;
-  console.log('Wifi connected: '); 
+  console.log('Wifi client connected: '); 
   Wifi.getIP((err, data) => {
     console.log('AP: ', JSON.stringify(data)); 
     _clientIP = data.ip;
+    sendDataToSmartthings();
+    setInterval(sendDataToSmartthings, SMARTTHINGS_SEND_INTERVAL);
   });
 
 });
