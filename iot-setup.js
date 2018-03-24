@@ -18,29 +18,19 @@ const PAGE_FOOTER =
  `
   </body>
   </html>
-`;    
+`;
+
 var _webServer;
 var _macAddr = '';
 var _apList;
+var _ssid;
+var _pw;
 
 function processAccessPoints(err, data) {
   if (err) throw err;
   
   console.log('Access Points: ', data.length);
-
-  // if (data) {
-  //   for (var i=0; i<data.length; i++) {
-  //     console.log('Access Point: ', data[i]);
-  //   }
-  // } else {
-  //   console.log('No access points');
-  // }
-
   _apList = data;
-  
-  // setTimeout(() => {
-  //   wifi.scan((err, data) => { processAccessPoints(err, data); });
-  // }, 10000);
   
 }
 
@@ -50,7 +40,7 @@ function enterSSIDPageContent() {
     '<br><hr><br>' +
     '<div style="text-align:center">Set SSID</div>' +
     '<br>' +
-    '<form action="/setAP.html">' +
+    '<form action="/ssidConfirm.njs">' +
       '<label>SSID</label><br><input name="ssid">' +
       '<br><br>' +
       '<label>Password</label><br><input name="password">' +
@@ -81,6 +71,21 @@ function apListPageContent() {
   page += '<hr>' + 
     '<a href="/enterSSID.njs">Continue</a>' +
     PAGE_FOOTER;
+
+  // Async refresh the list
+ //  Wifi.scan((err, data) => { processAccessPoints(err, data); });
+
+  return {'content': page};
+}
+
+function ssidConfirmPageContent() {
+  let page = PAGE_HEADER +
+    'Device ID: ' + _mac + 
+    '<br><hr><br>' +
+    '<div style="text-align:center">SSID Set</div>' +
+    '<br>';
+  page += `<div> SSID: ${_ssid} </div>`;
+  page += PAGE_FOOTER;
   
   return {'content': page};
 }
@@ -91,9 +96,9 @@ function createWebServer() {
     default_type: 'text/html',
     default_index: 'apList.njs',
     memory: {
-      'enterSSID.njs': {'content': enterSSIDPageContent},
-      'setAP.html': { 'content': '<html>TBD: [setAP] </html>' },
       'apList.njs' : {'content': apListPageContent},
+      'enterSSID.njs': {'content': enterSSIDPageContent},
+      'ssidConfirm.njs': { 'content': ssidConfirmPageContent},
     }
   });
     
@@ -107,10 +112,10 @@ function createWebServer() {
   
   _webServer.on('request', (request, response, parsedUrl, WebServer) => {
     console.log('WebServer requested', parsedUrl);
-    if (parsedUrl.pathname == '/setAP.html') {
-      let ssid = parsedUrl.query.ssid;
-      let pw = parsedUrl.query.password;
-      console.log(`set ssid: ${ssid} passeod: ${pw}`);
+    if (parsedUrl.pathname == '/ssidConfirm.njs') {
+      _ssid = parsedUrl.query.ssid;
+      _pw = parsedUrl.query.password;
+      console.log(`set ssid: ${_ssid}, password: ${_pw}`);
     }
   });
   
