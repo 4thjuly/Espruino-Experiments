@@ -3,6 +3,7 @@ const WebServer = require('WebServer');
 const http = require("http");
 const dgram = require('dgram');
 
+const LED_TIMEOUT = 30*1000;
 const SSID = 'iot-2903';
 const SMARTTHINGS_PORT = '39500';
 const SMARTTHINGS_SEND_INTERVAL = 5*60*1000;
@@ -31,6 +32,19 @@ var _clientIP;
 var _connectError;
 var _smartthingsIP = '192.168.1.159';
 
+function ledNotify(success) {
+  if (success) {
+    digitalWrite(LED2, 1);
+  } else {
+    digitalWrite(LED1, 1);
+  }
+  // Automatically clear the leds after a while
+  setTimeout(() => { 
+    digitalWrite(LED1, 0);
+    digitalWrite(LED2, 0);
+  }, LED_TIMEOUT);
+}
+
 function processAccessPoints(err, data) {
   if (err) throw err;
   console.log('Access Points: ', data.length);
@@ -43,23 +57,29 @@ function sendDataToSmartthings() {
     return;
   }
 
-  let content = JSON.stringify({
-    A0: analogRead(A0),
-    A1: analogRead(A1)
-  });
-  console.log('Smartthings send: ' + content);
-  var options = {
-    host: _smartthingsIP,
-    port: SMARTTHINGS_PORT,
-    path: '/',
-    method: 'POST',
-    headers: { "Content-Type":"application/json", "Content-Length":content.length }
-  };
-  http.request(options, (res) => {
-    let allData = "";
-    res.on('data', function(data) { allData += data; });
-    res.on('close', function(data) { console.log("Send closed: " + allData); }); 
-  }).end(content);
+  try {
+    let content = JSON.stringify({
+      A0: analogRead(A0),
+      A1: analogRead(A1)
+    });
+    console.log('Smartthings send: ' + content);
+    var options = {
+      host: _smartthingsIP,
+      port: SMARTTHINGS_PORT,
+      path: '/',
+      method: 'POST',
+      headers: { "Content-Type":"application/json", "Content-Length":content.length }
+    };
+    http.request(options, (res) => {
+      let allData = "";
+      res.on('data', function(data) { allData += data; });
+      res.on('close', function(data) { console.log("Send closed: " + allData); }); 
+    }).end(content);
+  } catch (exc) {
+    console.log('sendDataToSmartthings error: ', err);
+    Wifi.disconnect();
+    connectWifiAsClient();
+  }
 }
 
 function apListPageContent() {
@@ -150,6 +170,19 @@ function ssidConfirmPageContent() {
   return {'content': page};
 }
     
+function connectWifiAsClient() {
+  setTimeout(() => {
+    console.log('Connecting as wifi client: ', _ssid);
+    Wifi.connect(_ssid, {password:_pw}, (err) => {
+      if (err) {
+        console.log('Wifi connect error');
+        _connectError = true;
+        ledNotify(false);
+      }
+    });
+  }, 1000);
+}
+
 function createWebServer() {
   _webServer = new WebServer({
     port: 80,
@@ -182,14 +215,7 @@ function createWebServer() {
         _clientIP = undefined;
         _connectError = false;
         console.log(`set ssid: ${_ssid}, password: ${_pw}`);
-        setTimeout(() => {
-          Wifi.connect(_ssid, {password:_pw}, (err) => {
-            if (err) {
-              console.log('Wifi connect error');
-              _connectError = true;
-            }
-          });
-        }, 1000);
+        connectWifiAsClient();
       }
     }
   });
@@ -210,13 +236,14 @@ Wifi.on('connected', (err) => {
     _clientIP = data.ip;
     sendDataToSmartthings();
     setInterval(sendDataToSmartthings, SMARTTHINGS_SEND_INTERVAL);
+    ledNotify(true);
   });
 
 });
 
-Wifi.on('associated', () => {
-  console.log('Wifi associated'); 
-});
+Wifi.on('associated', () => { console.log('Wifi associated'); });
+
+Wifi.on('disconnected', () => { console.log("Wifi disconnected"); });
 
 function onInit() {
   console.log('OnInit');
