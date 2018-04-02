@@ -8,7 +8,7 @@ const SSID = 'iot-2903';
 const SMARTTHINGS_PORT = '39500';
 const LED_TIMEOUT = 30*1000;                  // Only show the led indicator for a while
 const SMARTTHINGS_SEND_INTERVAL = 15*60*1000; // Update smartthings every x minutes
-const SETUP_TIMEOUT = 30*1000;                // If setup times out, load default values from flash
+const SETUP_TIMEOUT = 10*1000;                // If setup times out, load default values from flash
 const WIFI_CLIENT_RETRY_TIMEOUT = 15*60*1000; // If wifi goes out, retry ever x minutes
 const RELAY_PIN = B15;
 
@@ -29,7 +29,7 @@ const PAGE_FOOTER =
 `;
 
 var _flashMem = new FlashEEPROM();
-var _startupServer;
+var _webServer;
 var _macAddr = '';
 var _apList;
 var _ssid;
@@ -39,7 +39,6 @@ var _connectError;
 var _smartthingsIP = '192.168.1.159';
 var _setupTimeoutID;
 var _sendDataIntervalID;
-var _steadystateServer;
 var _relayOn = false;
 
 // Nothing set manually so used the last save params
@@ -49,7 +48,6 @@ function onSetupTimeout() {
   loadParams();
   if (_ssid && _pw && _smartthingsIP) {
     connectWifiAsClient();
-    _startupServer.close();
     Wifi.stopAP();
   } else {
     console.log('Setup timeout but no default params');
@@ -161,7 +159,20 @@ function apListPageContent() {
   return {'content': page};
 }
 
-function relayPageContent() {
+function relayPageContent(req, res, parsedUrl, webserver) {
+  console.log('relayPage: ', JSON.stringify(parsedUrl));
+
+  if (parsedUrl.query) {
+    _relayOn = parsedUrl.query.on == 'true' ? 1 : 0; 
+    if (_relayOn) {
+      console.log('Turning on relay');
+      digitalWrite(RELAY_PIN, 1);
+    } else {
+      console.log('Turning off relay');
+      digitalWrite(RELAY_PIN, 0);
+    }
+  }
+
   let page = PAGE_HEADER + 
     'Device ID: ' + _mac + 
     '<br><hr><br>' +
@@ -250,8 +261,50 @@ function connectWifiAsClient() {
   }, 1000);
 }
 
-function createStartupWebServer() {
-  _startupServer = new WebServer({
+function onWebServerRequest(request, response, parsedUrl, WebServer) {
+  console.log('WebServer requested', parsedUrl.path);
+  if (_setupTimeoutID) { 
+    // Someone is setting params manually so don't use saved ones
+    console.log('Setting new params, stopping setup timeout: ', _setupTimeoutID);
+    clearTimeout(_setupTimeoutID);
+    _setupTimeoutID = 0;
+  }
+  if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
+    let newSSID = parsedUrl.query.ssid;
+    let newPW = parsedUrl.query.password;
+    if (_ssid != newSSID || _pw != newPW || _connectError) {
+      _ssid = parsedUrl.query.ssid;
+      _pw = parsedUrl.query.password;
+      _smartthingsIP = parsedUrl.query.smartthingsIP;
+      saveParams();
+      _clientIP = undefined;
+      _connectError = false;
+      console.log(`set ssid: ${_ssid}, password: ${_pw}`);
+      connectWifiAsClient();
+    }
+  }
+  // if (parsedUrl.pathname == '/relay' && parsedUrl.query) {
+  //   _relayOn = parsedUrl.query.on == 'true' ? 1 : 0; // on = true?
+  //   if (_relayOn) {
+  //     console.log('Turning on relay');
+  //     digitalWrite(RELAY_PIN, 1);
+  //   } else {
+  //     console.log('Turning off relay');
+  //     digitalWrite(RELAY_PIN, 0);
+  //   }
+  // }
+}
+
+function onWebServerStart(webserver) {
+  console.log('WebServer listening on port ' + webserver.port);
+  Wifi.getIP((err, data) => {  
+    _mac = data.mac.split(':').join('').toUpperCase();
+    console.log('Mac: ', _mac);
+  });
+}
+
+function createWebServer() {
+  _webServer = new WebServer({
     port: 80,
     default_type: 'text/html',
     default_index: 'apList.njs',
@@ -259,86 +312,13 @@ function createStartupWebServer() {
       'apList.njs' : {'content': apListPageContent},
       'enterSSID.njs': {'content': enterSSIDPageContent},
       'ssidConfirm.njs': {'content': ssidConfirmPageContent},
-    }
-  });
-    
-  _startupServer.on('start', (WebServer) => {
-    console.log('WebServer listening on port ' + WebServer.port);
-    Wifi.getIP((err, data) => {  
-      _mac = data.mac.split(':').join('').toUpperCase();
-      console.log('Mac: ', _mac);
-    });
-  });
-  
-  _startupServer.on('request', (request, response, parsedUrl, WebServer) => {
-    console.log('WebServer requested', parsedUrl.path);
-    if (_setupTimeoutID) { 
-      // Someone is setting params manually so don't use saved ones
-      console.log('Setting new params, stopping setup timeout: ', _setupTimeoutID);
-      clearTimeout(_setupTimeoutID);
-      _setupTimeoutID = 0;
-    }
-    if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
-      let newSSID = parsedUrl.query.ssid;
-      let newPW = parsedUrl.query.password;
-      if (_ssid != newSSID || _pw != newPW || _connectError) {
-        _ssid = parsedUrl.query.ssid;
-        _pw = parsedUrl.query.password;
-        _smartthingsIP = parsedUrl.query.smartthingsIP;
-        saveParams();
-        _clientIP = undefined;
-        _connectError = false;
-        console.log(`set ssid: ${_ssid}, password: ${_pw}`);
-        connectWifiAsClient();
-      }
-    }
-  });
-  
-  _startupServer.on('error', (error, WebServer) => {
-    console.log('WebServer error', error);
-  });
-
-  _startupServer.createServer();
-}
-
-function getDataFromSmartthings() {
-  _steadystateServer = new WebServer({
-    port: 80,
-    default_type: 'text/html',
-    default_index: 'relay.njs',
-    memory: {
-      // 'index.html': { 
-      //   'content': '<html></html>',
-      //   'type': 'text/html'
-      // },
       'relay.njs' : {'content': relayPageContent},
-    },
-  });
-
-  _steadystateServer.on('request', (request, response, parsedUrl, WebServer) => {
-    console.log('WebServer requested', parsedUrl.path);
-    console.log('WebServer request: ', JSON.stringify(request));
-    if (parsedUrl.pathname == '/relay' && parsedUrl.query) {
-      _relayOn = parsedUrl.query.on; // on = true?
-      if (_relayOn) {
-        console.log('Turning on relay');
-        digitalWrite(RELAY_PIN, 1);
-      } else {
-        console.log('Turning off relay');
-        digitalWrite(RELAY_PIN, 0);
-      }
     }
   });
-
-  _steadystateServer.on('start', (WebServer) => {
-    console.log('WebServer listening on port ' + WebServer.port);
-  });
-
-  _steadystateServer.on('error', (error, WebServer) => {
-    console.log('WebServer error', error);
-  });
-
-  _steadystateServer.createServer();
+  _webServer.on('start', onWebServerStart);
+  _webServer.on('request', onWebServerRequest);
+  _webServer.on('error', (error, WebServer) => { console.log('WebServer error', error); });
+  _webServer.createServer();
 }
 
 // Client connected, all ready to go
@@ -349,7 +329,6 @@ Wifi.on('connected', (err) => {
     console.log('AP: ', JSON.stringify(data)); 
     _clientIP = data.ip;
     sendDataToSmartthings();
-    getDataFromSmartthings();
     if (_sendDataIntervalID) { clearInterval(_sendDataIntervalID); }
     _sendDataIntervalID = setInterval(sendDataToSmartthings, SMARTTHINGS_SEND_INTERVAL);
     ledNotify(true);
@@ -376,7 +355,7 @@ function onInit() {
         Wifi.scan((err, data) => { 
           console.log('Scan complete'); 
           processAccessPoints(err, data); 
-          createStartupWebServer();
+          createWebServer();
         });
       });
       _setupTimeoutID = setTimeout(onSetupTimeout, SETUP_TIMEOUT);
