@@ -407,4 +407,4 @@ function onInit() {
   });
 }
 
-setTimeout(onInit, 1000);
+// setTimeout(onInit, 1000);
