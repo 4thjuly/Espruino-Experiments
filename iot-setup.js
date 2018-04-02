@@ -126,6 +126,7 @@ function sendDataToSmartthings() {
 
   try {
     let content = JSON.stringify({
+      IP: _clientIP,
       A0: analogRead(A0),
       A1: analogRead(A1)
     });
@@ -408,3 +409,4 @@ function onInit() {
 }
 
 // setTimeout(onInit, 1000);
+
