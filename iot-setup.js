@@ -8,8 +8,8 @@ const SSID = 'iot-2903';
 const SMARTTHINGS_PORT = '39500';
 const LED_TIMEOUT = 30*1000;                  // Only show the led indicator for a while
 const SMARTTHINGS_SEND_INTERVAL = 15*60*1000; // Update smartthings every x minutes
-const SETUP_TIMEOUT = 10*1000;                // If setup times out, load default values from flash
-const WIFI_CLIENT_RETRY_TIMEOUT = 15*60*1000; // If wifi goes out, retry ever x minutes
+const SETUP_TIMEOUT = 30*1000;                // If setup times out, load default values from flash
+const WIFI_CLIENT_RETRY_TIMEOUT = 5*60*1000; // If wifi goes out, retry ever x minutes
 const RELAY_PIN = B15;
 
 const PAGE_STYLE = 'font-family:Verdana; font-size:20px;';
@@ -99,9 +99,11 @@ function ledStopBlink() {
 
 function ledNotify(success) {
   if (success) {
+    digitalWrite(LED1, 0);
     digitalWrite(LED2, 1);
   } else {
     digitalWrite(LED1, 1);
+    digitalWrite(LED2, 0);
   }
   // Automatically clear the leds after a while
   setTimeout(() => { 
@@ -180,7 +182,7 @@ function apListPageContent() {
 }
 
 function relayPageContent(req, res, parsedUrl, webserver) {
-  console.log('relayPage: ', JSON.stringify(parsedUrl));
+  console.log('RelayPage: ', JSON.stringify(parsedUrl));
 
   if (parsedUrl.query) {
     _relayOn = parsedUrl.query.on == 'true' ? 1 : 0; 
@@ -235,35 +237,61 @@ function enterSSIDPageContent() {
   return {'content': page};
 }
 
-function ssidConfirmPageContent() {
+function ssidConfirmPageContent(req, res, parsedUrl, webserver) {
+
+  if (parsedUrl.query) {
+    let newSSID = parsedUrl.query.ssid;
+    let newPW = parsedUrl.query.password;
+    if (_ssid != newSSID || _pw != newPW || _connectError) {
+      _ssid = parsedUrl.query.ssid;
+      _pw = parsedUrl.query.password;
+      _smartthingsIP = parsedUrl.query.smartthingsIP;
+      saveParams();
+      _clientIP = undefined;
+      _connectError = false;
+      console.log(`set ssid: ${_ssid}, password: ${_pw}`);
+      connectWifiAsClient();
+    }
+  }
+
   let page = PAGE_HEADER +
     'Device ID: ' + _mac + 
     '<br><hr><br>' +
     '<div style="text-align:center">SSID Set</div>' +
     '<br>';
+  
   if (_ssid) {
     page += `<div> SSID: ${_ssid} </div>`;
-  } 
+  } else {
+    page += `<div> SSID: [Connecting] </div>`;
+  }
+
   if (_clientIP) {
     page += `<div> Client IP: ${_clientIP} </div>`;
     setTimeout( () => { 
       console.log('Stopping AP');
+      ledStopBlink();
       Wifi.stopAP();
     }, 1000);
-  } else if (_connectError) {
-    page += `<div> Connection Error </div>`;
-  } else if (!_ssid || !_clientIP) {
-    console.log('ssidConfirm no ssid');
-    page += '<div> Connecting... </div>' +
-    '<script>' +
-      'setTimeout( function(){window.location.href = "ssidConfirm.njs"}, 5000);' +
-    '</script>';
-  }
+  } else {
+    page += `<div> Client IP: [Connecting] </div>`;
+  } 
+  
   if (_smartthingsIP) {
     page += `<div> Smartthings IP: ${_smartthingsIP} </div>`;
   }
+
   page += '<br><hr>' + PAGE_FOOTER;
-  
+
+  if (_connectError) {
+    page += `<div> Connection Error </div>`;
+  } else { 
+    if (!_ssid || !_clientIP) {
+      console.log('ssidConfirm no ssid or ip, refresh');
+      page += '<script> setTimeout( function(){window.location.href = "ssidConfirm.njs"}, 5000); </script>';
+    }
+  }
+
   return {'content': page};
 }
     
@@ -291,20 +319,8 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
     clearTimeout(_setupTimeoutID);
     _setupTimeoutID = 0;
   }
-  if (parsedUrl.pathname == '/ssidConfirm.njs' && parsedUrl.query) {
-    let newSSID = parsedUrl.query.ssid;
-    let newPW = parsedUrl.query.password;
-    if (_ssid != newSSID || _pw != newPW || _connectError) {
-      _ssid = parsedUrl.query.ssid;
-      _pw = parsedUrl.query.password;
-      _smartthingsIP = parsedUrl.query.smartthingsIP;
-      saveParams();
-      _clientIP = undefined;
-      _connectError = false;
-      console.log(`set ssid: ${_ssid}, password: ${_pw}`);
-      connectWifiAsClient();
-    }
-  }
+
+  // Handle POST relay on/off
   if (parsedUrl.pathname == '/relay' && request.method == 'POST') {
     request.on('data', (json) => { 
       console.log('Relay Data: ', json); 
