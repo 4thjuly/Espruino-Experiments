@@ -43,6 +43,7 @@ var _relayOn = false;
 
 // Nothing set manually so used the last save params
 function onSetupTimeout() {
+  ledStopBlink();
   _setupTimeoutID = 0;
   console.log('Setup timeout, using default params');
   loadParams();
@@ -74,6 +75,25 @@ function loadParams() {
     console.log(`Loaded params: ${_ssid} ${_pw} ${_smartthingsIP}`);
   } else {
     console.log('Failed to load params');
+  }
+}
+
+var _ledBlink;
+var _blinkIntervalID;
+
+function ledBlink() {
+  _ledBlink = true;
+  digitalWrite(LED2, _ledBlink);
+  _blinkIntervalID = setInterval( () => {
+    _ledBlink = !_ledBlink;
+    digitalWrite(LED2, _ledBlink);
+  }, 1000);
+}
+
+function ledStopBlink() {
+  if (_blinkIntervalID) { 
+    clearInterval(_blinkIntervalID);
+    _blinkIntervalID = undefined;
   }
 }
 
@@ -263,6 +283,8 @@ function connectWifiAsClient() {
 
 function onWebServerRequest(request, response, parsedUrl, WebServer) {
   console.log('WebServer requested', parsedUrl.path);
+  //console.log('WebServer requested', parsedUrl);
+
   if (_setupTimeoutID) { 
     // Someone is setting params manually so don't use saved ones
     console.log('Setting new params, stopping setup timeout: ', _setupTimeoutID);
@@ -283,16 +305,17 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
       connectWifiAsClient();
     }
   }
-  // if (parsedUrl.pathname == '/relay' && parsedUrl.query) {
-  //   _relayOn = parsedUrl.query.on == 'true' ? 1 : 0; // on = true?
-  //   if (_relayOn) {
-  //     console.log('Turning on relay');
-  //     digitalWrite(RELAY_PIN, 1);
-  //   } else {
-  //     console.log('Turning off relay');
-  //     digitalWrite(RELAY_PIN, 0);
-  //   }
-  // }
+  if (parsedUrl.pathname == '/relay' && request.method == 'POST') {
+    request.on('data', (json) => { 
+      console.log('Relay Data: ', json); 
+      let data = JSON.parse(json);
+      _relayOn = false;
+      if (data && data.on == 'true') {_relayOn = true; }
+      console.log('Setting relay: ', _relayOn);
+      digitalWrite(RELAY_PIN, _relayOn);
+    });
+    request.on('close', () => { console.log('Relay close'); });
+  }
 }
 
 function onWebServerStart(webserver) {
@@ -313,6 +336,7 @@ function createWebServer() {
       'enterSSID.njs': {'content': enterSSIDPageContent},
       'ssidConfirm.njs': {'content': ssidConfirmPageContent},
       'relay.njs' : {'content': relayPageContent},
+      'relay' : {'content': '<html></html>'},
     }
   });
   _webServer.on('start', onWebServerStart);
@@ -358,6 +382,7 @@ function onInit() {
           createWebServer();
         });
       });
+      ledBlink();
       _setupTimeoutID = setTimeout(onSetupTimeout, SETUP_TIMEOUT);
       console.log('Starting setup timeout: ', _setupTimeoutID);
     } catch (exc) {
