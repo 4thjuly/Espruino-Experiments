@@ -128,7 +128,8 @@ function sendDataToSmartthings() {
     let content = JSON.stringify({
       IP: _clientIP,
       A0: analogRead(A0),
-      A1: analogRead(A1)
+      A1: analogRead(A1),
+      B15: _relayOn ? 1 : 0
     });
     console.log('Smartthings send: ' + content);
     var options = {
@@ -140,8 +141,8 @@ function sendDataToSmartthings() {
     };
     http.request(options, (res) => {
       let allData = "";
-      res.on('data', function(data) { allData += data; });
-      res.on('close', function(data) { console.log("Send closed: " + allData); }); 
+      res.on('data', (data) => { allData += data; });
+      res.on('close', (data) => { console.log("Send closed: " + allData); }); 
     }).end(content);
   } catch (exc) {
     console.log('sendDataToSmartthings error: ', exc);
@@ -323,15 +324,20 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
 
   // Handle POST relay on/off
   if (parsedUrl.pathname == '/relay' && request.method == 'POST') {
-    request.on('data', (json) => { 
-      console.log('Relay Data: ', json); 
-      let data = JSON.parse(json);
+    let allData = '';
+    request.on('data', (data) => { 
+      console.log('Relay data: ', data);
+      allData += data;
+    });
+    request.on('close', () => { 
+      console.log('Relay close'); 
+      let obj = JSON.parse(allData);
       _relayOn = false;
-      if (data && data.on == 'true') {_relayOn = true; }
+      if (obj && obj.on == 'true') {_relayOn = true; }
       console.log('Setting relay: ', _relayOn);
       digitalWrite(RELAY_PIN, _relayOn);
+      setTimeout(sendDataToSmartthings, 1000);
     });
-    request.on('close', () => { console.log('Relay close'); });
   }
 }
 
@@ -353,7 +359,7 @@ function createWebServer() {
       'enterSSID.njs': {'content': enterSSIDPageContent},
       'ssidConfirm.njs': {'content': ssidConfirmPageContent},
       'relay.njs' : {'content': relayPageContent},
-      'relay' : {'content': '<html></html>'},
+      'relay' : {'content': '{ }'},
     }
   });
   _webServer.on('start', onWebServerStart);
