@@ -52,7 +52,6 @@ function onSetupTimeout() {
   loadWifiParams();
   if (_ssid && _pw && _smartthingsIP) {
     connectWifiAsClient();
-    Wifi.stopAP();
   } else {
     console.log('Setup timeout but no default params');
   }  
@@ -98,6 +97,7 @@ function ledStopBlink() {
 }
 
 function ledNotify(success) {
+  ledStopBlink();
   if (success) {
     digitalWrite(LED1, 0);
     digitalWrite(LED2, 1);
@@ -273,11 +273,11 @@ function ssidConfirmPageContent(req, res, parsedUrl, webserver) {
 
   if (_clientIP) {
     page += `<div> Client IP: ${_clientIP} </div>`;
-    setTimeout( () => { 
-      console.log('Stopping AP');
-      ledStopBlink();
-      Wifi.stopAP();
-    }, 1000);
+    // setTimeout( () => { 
+    //   console.log('Stopping AP');
+    //   ledStopBlink();
+    //   Wifi.stopAP();
+    // }, 1000);
   } else {
     page += `<div> Client IP: [Connecting] </div>`;
   } 
@@ -320,6 +320,7 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
     // Someone is setting params manually so don't use saved ones, at least not 
     // for a long while
     console.log('Setting new params, delaying setup timeout: ', _setupTimeoutID);
+    clearTimeout(_setupTimeoutID);
     _setupTimeoutID = setTimeout(onSetupTimeout, EDIT_SETTINGS_TIMEOUT);
   }
 
@@ -381,6 +382,11 @@ function createWebServer() {
   }
 }
 
+function stopAP() {
+  console.log('Stopping AP');
+  Wifi.stopAP();
+}
+
 // Client connected, all ready to go
 Wifi.on('connected', (err) => {
   if (err) throw err;
@@ -392,6 +398,7 @@ Wifi.on('connected', (err) => {
     if (!_webServer) { setTimeout(createWebServer, 5000); }
     if (_sendDataIntervalID) { clearInterval(_sendDataIntervalID); }
     _sendDataIntervalID = setInterval(sendDataToSmartthings, SMARTTHINGS_SEND_INTERVAL);
+    setTimeout(stopAP, 5*60*1000);
     ledNotify(true);
   });
 
