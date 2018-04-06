@@ -4,12 +4,13 @@ const http = require("http");
 const dgram = require('dgram');
 const FlashEEPROM = require('FlashEEPROM');
 
-const SSID = 'iot-2903';
+const SSID_DEFAULT = 'iot-0000';
 const SMARTTHINGS_PORT = '39500';
 const LED_TIMEOUT = 30*1000;                  // Only show the led indicator for a while
 const SMARTTHINGS_SEND_INTERVAL = 15*60*1000; // Update smartthings every x minutes
-const SETUP_TIMEOUT = 30*1000;                // If setup times out, load default values from flash
-const WIFI_CLIENT_RETRY_TIMEOUT = 5*60*1000; // If wifi goes out, retry ever x minutes
+const SETUP_TIMEOUT = 60*1000;                // If setup times out, load default values from flash
+const EDIT_SETTINGS_TIMEOUT = 15*60*1000;     // If editing settings but then get disconnected, load value from flash
+const WIFI_CLIENT_RETRY_TIMEOUT = 5*60*1000;  // If wifi goes out, retry ever x minutes
 const RELAY_PIN = B15;
 
 const PAGE_STYLE = 'font-family:Verdana; font-size:20px;';
@@ -40,13 +41,15 @@ var _smartthingsIP = '192.168.1.159';
 var _setupTimeoutID;
 var _sendDataIntervalID;
 var _relayOn = false;
+var _ledBlink;
+var _blinkIntervalID;
 
 // Nothing set manually so used the last save params
 function onSetupTimeout() {
   ledStopBlink();
   _setupTimeoutID = 0;
   console.log('Setup timeout, using default params');
-  loadParams();
+  loadWifiParams();
   if (_ssid && _pw && _smartthingsIP) {
     connectWifiAsClient();
     Wifi.stopAP();
@@ -55,31 +58,28 @@ function onSetupTimeout() {
   }  
 }
 
-function saveParams() {
+function saveWifiParams() {
   console.log('Saving params');
-  _flashMem.write(0, _ssid);
-  _flashMem.write(1, _pw);
-  _flashMem.write(2, _smartthingsIP);
+  _flashMem.write(1, _ssid);
+  _flashMem.write(2, _pw);
+  _flashMem.write(3, _smartthingsIP);
 }
 
-function loadParams() {
+function loadWifiParams() {
   console.log('Loading params');
-  let v0 = _flashMem.read(0);
   let v1 = _flashMem.read(1);
   let v2 = _flashMem.read(2);
+  let v3 = _flashMem.read(3);
 
-  if (v0 && v1 && v2) { 
-    _ssid = E.toString(v0);
-    _pw = E.toString(v1);
-    _smartthingsIP = E.toString(v2);
+  if (v1 && v2 && v3) { 
+    _ssid = E.toString(v1);
+    _pw = E.toString(v2);
+    _smartthingsIP = E.toString(v3);
     console.log(`Loaded params: ${_ssid} ${_pw} ${_smartthingsIP}`);
   } else {
     console.log('Failed to load params');
   }
 }
-
-var _ledBlink;
-var _blinkIntervalID;
 
 function ledBlink() {
   _ledBlink = true;
@@ -116,6 +116,9 @@ function processAccessPoints(err, data) {
   if (err) throw err;
   console.log('Access Points: ', data.length);
   _apList = data;
+  for (var i = 0; i < _apList.length; i++) {
+    console.log(`AP: ${_apList[i].rssi}dB - "${_apList[i].ssid}"`);
+  }
 }
 
 function sendDataToSmartthings() {
@@ -248,7 +251,7 @@ function ssidConfirmPageContent(req, res, parsedUrl, webserver) {
       _ssid = parsedUrl.query.ssid;
       _pw = parsedUrl.query.password;
       _smartthingsIP = parsedUrl.query.smartthingsIP;
-      saveParams();
+      saveWifiParams();
       _clientIP = undefined;
       _connectError = false;
       console.log(`set ssid: ${_ssid}, password: ${_pw}`);
@@ -296,19 +299,17 @@ function ssidConfirmPageContent(req, res, parsedUrl, webserver) {
 
   return {'content': page};
 }
-    
+
 function connectWifiAsClient() {
-  setTimeout(() => {
-    console.log('Connecting as wifi client: ', _ssid);
-    Wifi.connect(_ssid, {password:_pw}, (err) => {
-      if (err) {
-        console.log('Wifi connect error');
-        _connectError = true;
-        ledNotify(false);
-        setTimeout(connectWifiAsClient, WIFI_CLIENT_RETRY_TIMEOUT);
-      }
-    });
-  }, 1000);
+  console.log('Connecting as wifi client: ', _ssid);
+  Wifi.connect(_ssid, {password:_pw}, (err) => {
+    if (err) {
+      console.log('Wifi connect error');
+      _connectError = true;
+      ledNotify(false);
+      setTimeout(connectWifiAsClient, WIFI_CLIENT_RETRY_TIMEOUT);
+    }
+  });
 }
 
 function onWebServerRequest(request, response, parsedUrl, WebServer) {
@@ -316,10 +317,10 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
   //console.log('WebServer requested', parsedUrl);
 
   if (_setupTimeoutID) { 
-    // Someone is setting params manually so don't use saved ones
-    console.log('Setting new params, stopping setup timeout: ', _setupTimeoutID);
-    clearTimeout(_setupTimeoutID);
-    _setupTimeoutID = 0;
+    // Someone is setting params manually so don't use saved ones, at least not 
+    // for a long while
+    console.log('Setting new params, delaying setup timeout: ', _setupTimeoutID);
+    _setupTimeoutID = setTimeout(onSetupTimeout, EDIT_SETTINGS_TIMEOUT);
   }
 
   // Handle POST relay on/off
@@ -343,29 +344,41 @@ function onWebServerRequest(request, response, parsedUrl, WebServer) {
 
 function onWebServerStart(webserver) {
   console.log('WebServer listening on port ' + webserver.port);
-  Wifi.getIP((err, data) => {  
-    _mac = data.mac.split(':').join('').toUpperCase();
-    console.log('Mac: ', _mac);
+  Wifi.getIP((err, data) => {
+    if (!err && data && data.mac) { 
+      _mac = data.mac.split(':').join('').toUpperCase();
+      _flashMem.write(0, _mac);
+      console.log('Mac: ', _mac);
+    } else {
+      console.log('ERROR webServerStart: ' + err + ' ' + data);
+    }
   });
 }
 
 function createWebServer() {
-  _webServer = new WebServer({
-    port: 80,
-    default_type: 'text/html',
-    default_index: 'apList.njs',
-    memory: {
-      'apList.njs' : {'content': apListPageContent},
-      'enterSSID.njs': {'content': enterSSIDPageContent},
-      'ssidConfirm.njs': {'content': ssidConfirmPageContent},
-      'relay.njs' : {'content': relayPageContent},
-      'relay' : {'content': '{ }'},
-    }
-  });
-  _webServer.on('start', onWebServerStart);
-  _webServer.on('request', onWebServerRequest);
-  _webServer.on('error', (error, WebServer) => { console.log('WebServer error', error); });
-  _webServer.createServer();
+  try {
+    _webServer = new WebServer({
+      port: 80,
+      default_type: 'text/html',
+      default_index: 'apList.njs',
+      memory: {
+        'apList.njs' : {'content': apListPageContent},
+        'enterSSID.njs': {'content': enterSSIDPageContent},
+        'ssidConfirm.njs': {'content': ssidConfirmPageContent},
+        'relay.njs' : {'content': relayPageContent},
+        'relay' : {'content': '{ }'},
+      }
+    });
+    _webServer.on('start', onWebServerStart);
+    _webServer.on('request', onWebServerRequest);
+    _webServer.on('error', (error, WebServer) => { 
+      console.log('WebServer error', error); 
+      _webServer = null;
+    });
+    _webServer.createServer();
+  } catch (exc) {
+    console.log('Error creating web server: ', exc);
+  }
 }
 
 // Client connected, all ready to go
@@ -376,6 +389,7 @@ Wifi.on('connected', (err) => {
     console.log('AP: ', JSON.stringify(data)); 
     _clientIP = data.ip;
     sendDataToSmartthings();
+    if (!_webServer) { setTimeout(createWebServer, 5000); }
     if (_sendDataIntervalID) { clearInterval(_sendDataIntervalID); }
     _sendDataIntervalID = setInterval(sendDataToSmartthings, SMARTTHINGS_SEND_INTERVAL);
     ledNotify(true);
@@ -389,13 +403,19 @@ Wifi.on('disconnected', () => { console.log("Wifi disconnected"); });
 
 function onInit() {
   console.log('OnInit');
+  let v0 = _flashMem.read(0);
+  let ssid = SSID_DEFAULT;
+  if (v0) { 
+    mac = E.toString(v0);
+    ssid = 'iot-' + mac.slice(-4);
+  }
   Wifi.disconnect();
   Wifi.stopAP();
-  Wifi.startAP(SSID, {authMode:"open", password:'12345678'}, () => {
+  Wifi.startAP(ssid, {authMode:"open", password:'12345678'}, () => {
     try {
       console.log('AP Started'); 
       Wifi.setAPIP({ip:'192.168.0.1'}, () => { });
-      Wifi.setHostname(SSID, () => { });
+      Wifi.setHostname(ssid, () => { });
       Wifi.getAPIP((err, data) => {  
         console.log('APIP: ', JSON.stringify(data)); 
         console.log('Wifi scan'); 
@@ -409,7 +429,7 @@ function onInit() {
       _setupTimeoutID = setTimeout(onSetupTimeout, SETUP_TIMEOUT);
       console.log('Starting setup timeout: ', _setupTimeoutID);
     } catch (exc) {
-      console.log(exc);
+      console.log('Error starting AP: ', exc);
     }
   });
 }
