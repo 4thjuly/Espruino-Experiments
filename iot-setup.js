@@ -217,7 +217,6 @@ function relayPageContent(req, res, parsedUrl, webserver) {
   return {'content': page};
 }
 
-
 function enterSSIDPageContent() {
   _connectError = false;
   _ssid = undefined;
