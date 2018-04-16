@@ -20,6 +20,6 @@ var RFU = [0x00, 0x00];
 var data = header.concat(namespace, instance, RFU);
 
 function onInit() {
-    NRF.setAdvertising(data, {interval:300});
+    NRF.setAdvertising(data, {interval:1000});
     console.log('Advertising');
 }
