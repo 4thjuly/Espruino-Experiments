@@ -360,13 +360,14 @@ function createWebServer() {
     _webServer = new WebServer({
       port: 80,
       default_type: 'text/html',
-      default_index: 'apList.njs',
+      default_index: 'index',
       memory: {
         'apList.njs' : {'content': apListPageContent},
         'enterSSID.njs': {'content': enterSSIDPageContent},
         'ssidConfirm.njs': {'content': ssidConfirmPageContent},
         'relay.njs' : {'content': relayPageContent},
         'relay' : {'content': '{ }'},
+        'index': {'content': '<html><head><meta http-equiv="Refresh" content="0; url=apList.njs"/></head></html>!'},
       }
     });
     _webServer.on('start', onWebServerStart);
@@ -380,6 +381,7 @@ function createWebServer() {
     console.log('Error creating web server: ', exc);
   }
 }
+
 
 function stopAP() {
   console.log('Stopping AP');
